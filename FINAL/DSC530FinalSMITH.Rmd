@@ -1,0 +1,187 @@
+---
+title: "DSC530FinalSMITH"
+author: "Champlin Smith"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## DSC530 Final Project
+
+# Initial basic model with every feature
+```{r}
+library(ggplot2)
+library(dplyr)
+library(car)
+
+
+data <- read.csv("C:\\Users\\champ\\OneDrive\\Documents\\songs.csv")
+
+
+model <- lm(track_popularity ~ GenreInt + danceability + energy + key + loudness + speechiness + acousticness + liveness + valence + tempo + duration_ms, data)
+
+summary(model)
+```
+# QQ-Plot
+```{r}
+# Q-Q Plot for Track Popularity
+qqnorm(data$track_popularity, main="Q-Q Plot of Track Popularity")
+qqline(data$track_popularity, col="red")  # Adds a reference line
+
+```
+#Scatter plot
+```{r}
+library(ggplot2)
+
+# Scatter Plot of Popularity vs. Danceability with Genre as Color
+ggplot(data, aes(x = danceability, y = track_popularity, color = as.factor(GenreInt))) +
+  geom_point(alpha = 0.6) +  # Scatter points with some transparency
+  labs(title = "Track Popularity vs. Danceability", 
+       x = "Danceability", 
+       y = "Track Popularity", 
+       color = "Genre") +  # Legend title
+  theme_minimal()
+```
+# Histograms
+```{r}
+numeric_vars <- names(data)[sapply(data, is.numeric)]
+
+par(mfrow = c(3, 4))
+for (var in numeric_vars) {
+  hist(data[[var]], main = paste("Histogram of", var), 
+       xlab = var, col = "lightblue", border = "black")
+}
+par(mfrow = c(1, 1))
+
+```
+# Descriptive statistics, skewness, kurtosis
+```{r}
+library(moments)
+
+# Function to compute descriptive statistics
+compute_stats <- function(var) {
+  var_data <- data[[var]]
+  
+  mean_val <- mean(var_data, na.rm = TRUE)
+  mode_val <- as.numeric(names(sort(table(var_data), decreasing = TRUE)[1]))  # Get most frequent value
+  sd_val <- sd(var_data, na.rm = TRUE)
+  iqr_val <- IQR(var_data, na.rm = TRUE)
+  skew_val <- skewness(var_data, na.rm = TRUE)  # Skewness for tail behavior
+  kurt_val <- kurtosis(var_data, na.rm = TRUE)  # Kurtosis for peak and tail thickness
+  
+  return(data.frame(Variable = var, Mean = mean_val, Mode = mode_val, 
+                    SD = sd_val, IQR = iqr_val, Skewness = skew_val, Kurtosis = kurt_val))
+}
+
+# Apply to all numeric variables
+numeric_vars <- names(data)[sapply(data, is.numeric)]
+stats_df <- do.call(rbind, lapply(numeric_vars, compute_stats))
+
+# Print summary statistics
+print(stats_df)
+
+```
+# PDF Comparisons
+```{r}
+genre_x <- data %>% filter(GenreInt == 2)
+other_genres <- data %>% filter(GenreInt != 2)
+
+compute_pmf <- function(df, variable) {
+  pmf <- df %>%
+    count(.data[[variable]]) %>%
+    mutate(Probability = n / sum(n))
+  return(pmf)
+}
+
+pmf_genre_x <- compute_pmf(genre_x, "track_popularity")
+pmf_other_genres <- compute_pmf(other_genres, "track_popularity")
+
+pmf_genre_x$Scenario <- "EDM"
+pmf_other_genres$Scenario <- "Other Genres"
+
+pmf_combined <- bind_rows(pmf_genre_x, pmf_other_genres)
+
+ggplot(pmf_combined, aes(x = track_popularity, y = Probability, fill = Scenario)) +
+  geom_bar(stat = "identity", position = "dodge", alpha = 0.7) +
+  labs(title = "PMF of Track Popularity by Genre",
+       x = "Track Popularity",
+       y = "Probability") +
+  theme_minimal()
+```
+# CDF
+```{r}
+ggplot(data, aes(x = track_popularity)) +
+  stat_ecdf(geom = "step", color = "blue", size = 1) +
+  labs(title = "Cumulative Distribution Function (CDF) of Track Popularity",
+       x = "Track Popularity",
+       y = "Cumulative Probability") +
+  theme_minimal()
+```
+# Analytic distrbution - histogram vs normal distribution
+```{r}
+pop_mean <- mean(data$track_popularity, na.rm = TRUE)
+pop_sd <- sd(data$track_popularity, na.rm = TRUE)
+
+ggplot(data, aes(x = track_popularity)) +
+  geom_histogram(aes(y = ..density..), bins = 30, fill = "lightblue", color = "black", alpha = 0.7) +
+  stat_function(fun = dnorm, args = list(mean = pop_mean, sd = pop_sd), 
+                color = "red", size = 1) +
+  labs(title = "Histogram of Track Popularity with Normal Distribution",
+       x = "Track Popularity",
+       y = "Density") +
+  theme_minimal()
+```
+# The distribution of popularity in the dataset is not normal as seen in the above analytic. It is skewed positively and has a kurtosis nearr 5. It has a very heavy tail initially
+
+# Scatter - Danceability
+```{r}
+ggplot(data, aes(x = danceability, y = track_popularity)) +
+  geom_point(alpha = 0.5, color = "blue") +
+  geom_smooth(method = "lm", color = "red", se = FALSE) + 
+  labs(title = "Scatter Plot: Danceability vs. Track Popularity",
+       x = "Danceability",
+       y = "Track Popularity") +
+  theme_minimal()
+```
+# Scatter - Energy
+```{r}
+ggplot(data, aes(x = energy, y = track_popularity)) +
+  geom_point(alpha = 0.5, color = "green") +
+  geom_smooth(method = "lm", color = "red", se = FALSE) + 
+  labs(title = "Scatter Plot: Energy vs. Track Popularity",
+       x = "Energy",
+       y = "Track Popularity") +
+  theme_minimal()
+```
+
+# Correlation Matrix
+```{r}
+cor_matrix <- cor(data[, c("danceability", "energy", "track_popularity")], use = "complete.obs", method = "pearson")
+print("Correlation")
+print(cor_matrix)
+
+cov_matrix <- cov(data[, c("danceability", "energy", "track_popularity")], use = "complete.obs")
+print("Covariance")
+print(cov_matrix)
+```
+# The better to understand measure to determine the strength and direction of the relationship between varialbes in Pearsons Correlation, since it provides a set scale from -1 to 1 instead of raw empirical numbers. With this understanding, I do not see any multicollinearity issues as no variables are highly correlated with each other. The highest correlation is -.14, and this is well within bounds to be included in modeling as a feature. 
+
+# Hypothsis Testing. Hypothesis - Energy has no affect on song popularity.
+```{r}
+model <- lm(track_popularity ~ GenreInt + danceability + energy + key + loudness + speechiness + acousticness + liveness + valence + tempo + duration_ms, data)
+
+summary(model)
+```
+# Energy is statistically significant, and thus we reject the null hypothesis. Energy has a statistically significant affect on song popularity.
+
+
+# Step-wise feature selection
+```{r}
+model <- lm(track_popularity ~ GenreInt + danceability + energy + key + loudness + duration_ms, data)
+
+summary(model)
+```
+

@@ -14,6 +14,14 @@ import first
 import thinkstats2
 
 
+import os
+
+# Set the directory
+os.chdir(r"C:\Users\champ\OneDrive\Documents\DSC530 Data Exploration\ThinkStats2\code")
+
+# Verify the current working directory
+print(os.getcwd())
+
 def Mode(hist):
     """Returns the value with the highest frequency.
 
@@ -50,12 +58,12 @@ def WeightDifference(live, firsts, others):
     var2 = others.totalwgt_lb.var()
 
     print('Mean')
-    print('First babies', mean1)
-    print('Others', mean2)
+    print('First babies mean', mean1)
+    print('Others mean', mean2)
 
     print('Variance')
-    print('First babies', var1)
-    print('Others', var2)
+    print('First babies Variance', var1)
+    print('Others Variance', var2)
 
     print('Difference in lbs', mean1 - mean2)
     print('Difference in oz', (mean1 - mean2) * 16)

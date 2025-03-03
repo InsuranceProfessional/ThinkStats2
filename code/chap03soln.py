@@ -1,37 +1,36 @@
-"""This file contains code for use with "Think Stats",
-by Allen B. Downey, available from greenteapress.com
-
-Copyright 2014 Allen B. Downey
-License: GNU GPLv3 http://www.gnu.org/licenses/gpl.html
-"""
-
 from __future__ import print_function
 
 import numpy as np
 import sys
 
 import nsfg
-import first
 import thinkstats2
 import thinkplot
+import os
 
+# Set the directory
+os.chdir(r"C:\Users\champ\OneDrive\Documents\DSC530 Data Exploration\ThinkStats2\code")
+
+# Verify the current working directory
+print(os.getcwd())
 
 def PmfMean(pmf):
     """Computes the mean of a PMF.
 
+    Args:
+        pmf: Pmf object
+
     Returns:
         float mean
     """
-    mean = 0.0
-    for x, p in pmf.d.items():
-        mean += p * x
+    mean = sum(p * x for x, p in pmf.Items())
     return mean
-
 
 def PmfVar(pmf, mu=None):
     """Computes the variance of a PMF.
 
     Args:
+        pmf: Pmf object
         mu: the point around which the variance is computed;
             if omitted, computes the mean
 
@@ -39,70 +38,108 @@ def PmfVar(pmf, mu=None):
         float variance
     """
     if mu is None:
-        mu = pmf.Mean()
+        mu = PmfMean(pmf)
 
-    var = 0.0
-    for x, p in pmf.d.items():
-        var += p * (x - mu) ** 2
+    var = sum(p * (x - mu) ** 2 for x, p in pmf.Items())
     return var
 
+def PercentileRank(cdf, value):
+    """Computes the percentile rank for a value.
 
-def Diffs(t):
-    """List of differences between the first elements and others.
+    Args:
+        cdf: Cdf object
+        value: value to compute the rank for
 
-    t: list of numbers
-    
-    returns: list of numbers
+    Returns:
+        Percentile rank (float)
     """
-    first = t[0]
-    rest = t[1:]
-    diffs = [first - x for x in rest]
-    return diffs
+    return cdf.Prob(value)
 
+def main():
+    # Generate 1000 random numbers between 0 and 1
+    random_numbers = np.random.random(1000)
 
-def PairWiseDifferences(live):
-    """Summarize pairwise differences for children of the same mother.
+    # Compute the PMF
+    random_pmf = thinkstats2.Pmf(random_numbers, label='Random Numbers')
 
-    live: DataFrame of pregnancy records for live births
-    """
-    live = live[live.prglngth >= 37]
-    preg_map = nsfg.MakePregMap(live)
+    # Compute the CDF
+    random_cdf = thinkstats2.Cdf(random_numbers, label='Random Numbers')
 
-    diffs = []
-    for caseid, indices in preg_map.items():
-        lengths = live.loc[indices].prglngth.values
-        if len(lengths) >= 2:
-            diffs.extend(Diffs(lengths))
+    # Plot the PMF
+    thinkplot.PrePlot(1)
+    thinkplot.Pmf(random_pmf)
+    thinkplot.Show(xlabel='Value', ylabel='PMF', title='PMF of Random Numbers')
 
-    mean = thinkstats2.Mean(diffs)
-    print('Mean difference between pairs', mean)
+    # Plot the CDF
+    thinkplot.PrePlot(1)
+    thinkplot.Cdf(random_cdf)
+    thinkplot.Show(xlabel='Value', ylabel='CDF', title='CDF of Random Numbers')
 
-    pmf = thinkstats2.Pmf(diffs)
-    thinkplot.Hist(pmf, align='center')
-    thinkplot.Show(xlabel='Difference in weeks',
-                   ylabel='PMF')
+    # Verify if the distribution is uniform by looking at the PMF
+    print("The PMF should be approximately uniform, with all values having roughly the same probability.")
 
+    # Load the NSFG data
+    live = nsfg.ReadFemPreg()
+    live = live[live.outcome == 1]  # Filter for live births
 
-def main(script):
-    """Tests the functions in this module.
+    # Separate into first babies and others
+    firsts = live[live.birthord == 1]
+    others = live[live.birthord != 1]
 
-    script: string script name
-    """
-    live, firsts, others = first.MakeFrames()
-    PairWiseDifferences(live)
+    # Extract birth weights
+    first_weights = firsts.totalwgt_lb.dropna()
+    other_weights = others.totalwgt_lb.dropna()
 
-    # test PmfMean and PmfVar
-    prglngth = live.prglngth
-    pmf = thinkstats2.Pmf(prglngth)
-    mean = PmfMean(pmf)
-    var = PmfVar(pmf)
+    # Compute PMFs and CDFs
+    first_pmf = thinkstats2.Pmf(first_weights, label='First Babies')
+    other_pmf = thinkstats2.Pmf(other_weights, label='Others')
+    first_cdf = thinkstats2.Cdf(first_weights, label='First Babies')
+    other_cdf = thinkstats2.Cdf(other_weights, label='Others')
 
-    assert(mean == pmf.Mean())
-    assert(var == pmf.Var())
-    print('mean/var preg length', mean, var)
+    # Your birth weight
+    my_weight = 7.4
+    percentile_rank = PercentileRank(other_cdf, my_weight)
 
-    print('%s: All tests passed.' % script)
+    print(f"Your birth weight: {my_weight} pounds")
+    print(f"Percentile rank: {percentile_rank * 100:.2f}%")
 
+    # Load the NSFG respondent data
+    df = nsfg.ReadFemResp()
+
+    # Extract the `numkdhh` column
+    numkdhh = df['numkdhh'].dropna()
+
+    # Actual distribution (respondents' perspective)
+    actual_pmf = thinkstats2.Pmf(numkdhh, label='Actual Distribution')
+
+    # Biased distribution (children's perspective)
+    biased_values = []
+    for value in numkdhh:
+        biased_values.extend([value] * int(value))
+    biased_pmf = thinkstats2.Pmf(biased_values, label='Biased Distribution')
+
+    # Compute means and variances using PmfMean and PmfVar
+    actual_mean = PmfMean(actual_pmf)
+    actual_var = PmfVar(actual_pmf, mu=actual_mean)
+    biased_mean = PmfMean(biased_pmf)
+    biased_var = PmfVar(biased_pmf, mu=biased_mean)
+
+    print(f"Actual Mean: {actual_mean:.2f}, Variance: {actual_var:.2f}")
+    print(f"Biased Mean: {biased_mean:.2f}, Variance: {biased_var:.2f}")
+
+    # Plot the distributions for birth weights
+    thinkplot.PrePlot(2)
+    thinkplot.Pmf(first_pmf, label='First Babies')
+    thinkplot.Pmf(other_pmf, label='Others', color='orange')
+    thinkplot.Show(xlabel='Birth weight (pounds)', ylabel='PMF',
+                   title='Birth Weight Distributions')
+
+    # Plot the actual and biased distributions
+    thinkplot.PrePlot(2)
+    thinkplot.Pmf(actual_pmf, label='Actual Distribution')
+    thinkplot.Pmf(biased_pmf, label='Biased Distribution', color='orange')
+    thinkplot.Show(xlabel='Number of children in household', ylabel='PMF',
+                   title='Actual vs Biased Distributions')
 
 if __name__ == '__main__':
-    main(*sys.argv)
+    main()
